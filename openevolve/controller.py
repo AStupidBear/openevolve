@@ -243,7 +243,7 @@ class OpenEvolve:
         self.database.log_island_status()
 
         # create temp file to save database snapshots to for process workers to load from
-        temp_db_path = "tmp/" + str(uuid.uuid4())
+        temp_db_path = "/tmp/" + str(uuid.uuid4())
         self.database.save(temp_db_path, start_iteration)
 
         with concurrent.futures.ProcessPoolExecutor(
