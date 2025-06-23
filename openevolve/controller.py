@@ -276,6 +276,20 @@ class OpenEvolve:
                     # Add to database (will be added to current island)
                     self.database.add(result.child_program, iteration=iteration)
 
+                    # Log prompts
+                    self.database.log_prompt(
+                        template_key=(
+                            "full_rewrite_user" if not self.config.diff_based_evolution else "diff_user"
+                        ),
+                        program_id=result.child_program.id,
+                        prompt=result.prompt,
+                        responses=[result.llm_response],
+                    )
+
+                    # Store artifacts if they exist
+                    if result.artifacts:
+                        self.database.store_artifacts(result.child_program.id, result.artifacts)
+                
                     # Increment generation for current island
                     self.database.increment_island_generation()
 

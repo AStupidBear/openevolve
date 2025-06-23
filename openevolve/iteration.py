@@ -26,6 +26,9 @@ class Result:
     parent: str = None
     child_metrics: str = None
     iteration_time: float = None
+    prompt: str = None
+    llm_response: str = None
+    artifacts: str = None
 
 
 def run_iteration_sync(iteration: int, config: Config, evaluation_file: str, database_path: str):
@@ -64,20 +67,29 @@ def run_iteration_sync(iteration: int, config: Config, evaluation_file: str, dat
     # Sample parent and inspirations from current island
     parent, inspirations = database.sample()
 
-    # Build prompt
+    # Retrieve artifacts from parent program if any
+    parent_artifacts = database.get_artifacts(parent.id)
+
+    # Get actual top programs for prompt context (separate from inspirations)
+    # This ensures the LLM sees only high-performing programs as examples
+    actual_top_programs = database.get_top_programs(5)
+
+    # Build prompt using extended signature
     prompt = prompt_sampler.build_prompt(
         current_program=parent.code,
-        parent_program=parent.code,  # We don't have the parent's code, use the same
+        parent_program=parent.code,  # We don't have the parent's parent code, so duplicate
         program_metrics=parent.metrics,
-        previous_programs=[p.to_dict() for p in database.get_top_programs(3)],
-        top_programs=[p.to_dict() for p in inspirations],
+        previous_programs=[p.to_dict() for p in actual_top_programs],
+        top_programs=[p.to_dict() for p in actual_top_programs],  # Use actual top programs
+        inspirations=[p.to_dict() for p in inspirations],  # Pass inspirations separately
         language=config.language,
         evolution_round=iteration,
-        allow_full_rewrite=config.allow_full_rewrites,
+        diff_based_evolution=config.diff_based_evolution,
+        program_artifacts=parent_artifacts if parent_artifacts else None,
     )
 
     async def _run():
-        result = Result(parent=parent)
+        result = Result(parent=parent, prompt=prompt)
         iteration_start = time.time()
 
         # Generate code modification
@@ -86,6 +98,7 @@ def run_iteration_sync(iteration: int, config: Config, evaluation_file: str, dat
                 system_message=prompt["system"],
                 messages=[{"role": "user", "content": prompt["user"]}],
             )
+            result.llm_response = llm_response
 
             # Parse the response
             if config.diff_based_evolution:
@@ -121,6 +134,10 @@ def run_iteration_sync(iteration: int, config: Config, evaluation_file: str, dat
             child_id = str(uuid.uuid4())
             result.child_metrics = await evaluator.evaluate_program(child_code, child_id)
 
+            # Retrieve any artifacts produced during evaluation
+            artifacts = evaluator.get_pending_artifacts(child_id)
+            result.artifacts = artifacts
+            
             # Create a child program
             result.child_program = Program(
                 id=child_id,
