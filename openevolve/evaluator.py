@@ -296,10 +296,10 @@ class Evaluator:
         # Run the evaluation with timeout - let exceptions bubble up for retry handling
         result = await asyncio.wait_for(run_evaluation(), timeout=self.config.timeout)
 
-        # Validate result
-        if not isinstance(result, dict):
-            logger.warning(f"Evaluation returned non-dictionary result: {result}")
-            return {"error": 0.0}
+        # # Validate result
+        # if not isinstance(result, dict):
+        #     logger.warning(f"Evaluation returned non-dictionary result: {result}")
+        #     return {"error": 0.0}
 
         return result
 
